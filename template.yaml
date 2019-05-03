@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: > 
+   Schedule or delay message publication on an AWS SNS topic using a
+   simple Step Functions state machine with two tasks: Wait, SNS.
+
+Parameters:
+    # For demo. You can remove this and the "Subscription" section below.
+    NotificationEmail:
+        Type: String
+        Description: Email address to subscribe to SNS topic
+
+Resources:
+    # SNS topic. Could be passed in as a parameter to the stack instead.
+    SNSTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            # For demo. You can remove this and the "Parameters" section above.
+            Subscription:
+            - Endpoint: !Ref NotificationEmail
+              Protocol: email
+
+    # Step Functions state machine that delays, then publishes to SNS topic.
+    StepFunctionsStateMachine:
+        Type: "AWS::StepFunctions::StateMachine"
+        Properties:
+            StateMachineName: DelayedSNS
+            RoleArn: !GetAtt StepFunctionsServiceRole.Arn
+            # Replace "SecondsPath" with "TimestampPath" for scheduling
+            DefinitionString:
+              Fn::Sub:
+                - |
+                  {
+                    "StartAt": "Delay",
+                    "Comment": "Publish to SNS with delay",
+                    "States": {
+                      "Delay": {
+                        "Type": "Wait",
+                        "SecondsPath": "$.delay_seconds",
+                        "Next": "Publish to SNS"
+                      },
+                      "Publish to SNS": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::sns:publish",
+                        "Parameters": {
+                          "TopicArn": "${SNSTopic}",
+                          "Subject.$": "$.subject",
+                          "Message.$": "$.message"
+                        },
+                        "End": true
+                      }
+                    }
+                  }
+                - SNSTopic: !Ref SNSTopic
+
+    # Allow Step Functions state machine to publish to SNS topic
+    StepFunctionsServiceRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: !Join ["", ["/", !Ref "AWS::StackName", "/"]]
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Sid: "AllowStepFunctionsServiceToAssumeRole"
+                        Effect: "Allow"
+                        Action: 
+                            - "sts:AssumeRole"
+                        Principal:
+                            Service:
+                                - !Sub "states.${AWS::Region}.amazonaws.com"
+            Policies:
+                -   PolicyName: "PublishToSNSTopic"
+                    PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                            -   Effect: "Allow"
+                                Action:
+                                    - "sns:Publish"
+                                Resource: 
+                                    - !Ref SNSTopic
+
+Outputs:
+    StepFunctionsStateMachine:
+        Description: Step Functions State Machine ARN
+        Value: !Ref StepFunctionsStateMachine
+    SNSTopic:
+        Description: SNS Topic ARN
+        Value: !Ref SNSTopic
