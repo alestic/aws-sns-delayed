@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
 Description: > 
    Schedule or delay message publication on an AWS SNS topic using a
    simple Step Functions state machine with two tasks: Wait, SNS.
