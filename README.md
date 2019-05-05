@@ -8,4 +8,4 @@ simple Step Functions state machine
 For more information on how to use this sample stack, please read this
 blog post:
 
-> TBD
+> https://alestic.com/2019/05/aws-delayed-sns-step-functions/
